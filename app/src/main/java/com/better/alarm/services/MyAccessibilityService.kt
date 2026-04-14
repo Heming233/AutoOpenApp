@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -18,8 +19,11 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import androidx.annotation.RequiresApi
 import com.better.alarm.domain.AlarmsScheduler
+import kotlinx.coroutines.Runnable
 import java.util.Timer
 import java.util.TimerTask
+import kotlin.concurrent.thread
+
 
 class MyAccessibilityService: AccessibilityService() {
     private val SWIPE_ACTION= "com.better.alarm.UNLOCK_BROADCAST"
@@ -50,6 +54,97 @@ class MyAccessibilityService: AccessibilityService() {
     }
 
     /**
+     * 监控签到结果
+     */
+    private fun monitorSignInResult(){
+        val checkInterval = 500L
+        val timeout = 5000L
+        val startTime = System.currentTimeMillis()
+
+        val runnable = object : Runnable{
+            override fun run(){
+                val elapsed = System.currentTimeMillis() - startTime
+                if(elapsed > timeout){
+                    Log.w(TAG, "签到超时，准备重试")
+//                    handleSignInResult(false)
+                    return
+                }
+
+                //判断签到结果
+                val result = checkSignInResultFromUI()
+                if(result != null){
+//                    handleSignInResult(result)
+                }
+                else{
+//                    mainHandler.postDelayed(this,checkInterval)
+                }
+            }
+        }
+
+//        mainHandler.post(runnable)
+    }
+
+    /**
+     * 判断签到结果
+     * 该部分代码调用了rootInActiveWindow安卓辅助功能API
+     * 这个必须在主线程+辅助功能服务自身的线程中调用
+     * 现在为了程序不被杀死，我已经把solutionOfNote10()放入子线程
+     * 而系统禁止子线程获取当前窗口信息
+     * 所以函数不被执行
+     */
+//    private fun checkSignInResultFromUI() : Boolean?{
+////        val root = rootInActiveWindow?: return null
+//        var result: Boolean? = null
+//
+//        Handler(Looper.getMainLooper()).post{
+//            val root = rootInActiveWindow ?: run{
+//                Log.w("SignInStatus","rootInActiveWindow = null")
+//                result = null
+//                return@post
+//            }
+//
+//            if(root.findAccessibilityNodeInfosByText("上班打卡成功").isNotEmpty() ||
+//                root.findAccessibilityNodeInfosByText("下班打卡成功").isNotEmpty()){
+//                Log.d("SignInStatus","打卡成功")
+//                result = true
+//            }
+//            else if(root.findAccessibilityNodeInfosByText("超出管理员指定的打卡范围").isNotEmpty() ||
+//                root.findAccessibilityNodeInfosByText("管理员已关闭外勤打卡").isNotEmpty()){
+//                Log.w("SignInStatus","打卡失败")
+//                result = false
+//            }
+//            else{
+//                Log.w("FindTextStatus","未找到对话框")
+//                result = null
+//            }
+//        }
+//        Thread.sleep(100)
+//        return result
+//    }
+    private fun checkSignInResultFromUI() : Boolean?{
+        val root = rootInActiveWindow ?: return null
+
+        if (root.findAccessibilityNodeInfosByText("上班打卡成功").isNotEmpty() ||
+            root.findAccessibilityNodeInfosByText("下班打卡成功").isNotEmpty()
+        ) {
+            Log.d("SignInStatus", "打卡成功")
+            return true
+        }
+
+        if (root.findAccessibilityNodeInfosByText("超出管理员指定的打卡范围").isNotEmpty() ||
+            root.findAccessibilityNodeInfosByText("管理员已关闭外勤打卡").isNotEmpty() ||
+            root.findAccessibilityNodeInfosByText("无法打卡").isNotEmpty()
+        ) {
+            Log.w("SignInStatus", "打卡失败")
+            return false
+        }
+
+        Log.w("FindTextStatus", "未找到对话框")
+        return null
+    }
+
+
+    /**
      * 初始化监听器，调用上划屏幕方法
      */
     private val swipeReceiver = object : BroadcastReceiver() {
@@ -64,10 +159,22 @@ class MyAccessibilityService: AccessibilityService() {
 //                solutionOfHuawei_XiaoHei(context)
 //                solutionOfV20(context)
 //                solutionOfHonor9(context)
-                solutionOfOppo(context)
+                /**
+                 * 我写的这个解决方案函数里让线程sleep太长了
+                 * 动不动就Thread.sleep()
+                 * 阻塞时间太长导致系统判定为程序无响应从而杀死程序
+                 */
+//                thread(start = true){
+//                    solutionOfNote10(context)
+//                }
+                solutionOfNote10(context)
             }
         }
     }
+
+    /**
+     *
+     */
 
     fun solutionOfHuaweiCX70(context: Context){
         try{
@@ -472,6 +579,8 @@ class MyAccessibilityService: AccessibilityService() {
          */
         performClick(533F,1052F)
 
+
+
         /**
          * 荣耀9点击钉钉内部打卡按钮
          */
@@ -558,6 +667,240 @@ class MyAccessibilityService: AccessibilityService() {
         catch(e: InterruptedException){
             e.printStackTrace()
         }
+    }
+
+    fun solutionOfNote10(context: Context){
+        //Huawei Note10
+
+        var flag = false
+        try{
+            Thread.sleep(500L)
+        }
+        catch(e: InterruptedException){
+            e.printStackTrace()
+        }
+////        var flag = false;
+//
+////        try{
+////            Thread.sleep(1000L)
+////        }
+////        catch(e: InterruptedException){
+////            e.printStackTrace()
+////        }
+        /**
+         * 划动屏幕调出输入密码界面
+         */
+        performSwipeGesture(551F,1762F,551F,512F,500L)
+        try{
+            Thread.sleep(1000L)
+        }
+        catch(e: InterruptedException){
+            e.printStackTrace()
+        }
+        Log.d("KeyStatus","Unlocking the screen")
+        performClick(837F,1692F)
+        performClick(540F,2083F)
+        performClick(540F,1500F)
+        performClick(244F,1500F)
+        performClick(540F,1500F)
+        performClick(837F,1885F)
+
+        Log.d("KeyStatus","Unlocked the screen")
+        returnHome()
+
+        try {
+            Thread.sleep(500L)
+        }
+        catch (e: InterruptedException){
+            e.printStackTrace()
+        }
+        performClick(545F,1063F)
+        try{
+            Thread.sleep(1000L)
+        }
+        catch (e: InterruptedException){
+            e.printStackTrace()
+        }
+
+        flag = checkSignInResultFromUI() ?: false
+        for(i in 0..4){
+            if(flag == true){
+
+            }
+        }
+//        /**
+//         * 使用Handler+postDelayed分布延时
+//         */
+//        Handler(Looper.getMainLooper()).postDelayed({
+
+//
+//            Handler(Looper.getMainLooper()).postDelayed({
+//                //点击桌面钉钉图标
+//                performClick(560F,1045F)
+//
+////                Handler(Looper.getMainLooper()).postDelayed({
+////                    //点击工作台
+////                    performClick(534F,2117F)
+////
+////                    Handler(Looper.getMainLooper()).postDelayed({
+////                        //点击考勤打卡
+////                        performClick(144F,1006F)
+////
+////                        Handler(Looper.getMainLooper()).postDelayed({
+////                            checkLoop(0)
+////                        },7000)
+////                    },1500)
+////                },1500)
+//                thread{
+//                    Thread.sleep(7000)
+//                    checkLoopInChildThread(0)
+//                }
+////                Handler(Looper.getMainLooper()).postDelayed({
+////                    checkLoop(0)
+////                },7000)
+//            },1000)
+//        },1500)
+
+//        try{
+//            Thread.sleep(1000L)
+//        }
+//        catch(e: InterruptedException){
+//            e.printStackTrace()
+//        }
+//        performSwipeGesture(863F,931F,220F,931F,500L)
+
+//        try{
+//            Thread.sleep(1000L)
+//        }
+//        catch(e: InterruptedException){
+//            e.printStackTrace()
+//        }
+
+//
+//
+//
+//
+//        /**
+//         * 华为Note10点击钉钉内部打卡按钮
+//         */
+//        try{
+//            Thread.sleep(7000L)
+//        }
+//        catch(e: InterruptedException){
+//            e.printStackTrace()
+//        }
+//
+//        for(i in 0 .. 9 ){
+//            flag = checkSignInResultFromUI() ?: false
+//            if(!flag){
+//                //点击“我知道了”关闭对话框
+//                performClick(805F,1273F)
+//                Thread.sleep(1000L)
+//
+//                //点击打卡按钮
+//                performClick(540F,1280F)
+//            }
+//            else{
+//                break
+//            }
+//            try{
+//                Thread.sleep(2000L)
+//            }
+//            catch (e: InterruptedException){
+//                e.printStackTrace()
+//            }
+//        }
+//
+//
+//        /**
+//         * Note10等待按钮反应，返回桌面
+//         */
+//        try{
+//            Thread.sleep(3000L)
+//
+//            /**
+//             * returnHome()方法执行一次仅返回桌面
+//             * 连续执行两次才是返回主桌面
+//             */
+//            returnHome()
+////            Thread.sleep(1000L)
+////            performSwipeGesture(550F,2253F,550F,970F,200L)
+//        }
+//        catch(e: InterruptedException){
+//            e.printStackTrace()
+//        }
+
+    }
+
+    private fun checkLoop(times: Int){
+        var times = 0
+        while (times < 10) {
+            try {
+                var result: Boolean? = null
+
+                // 无障碍检查 → 用 Handler，无红线
+                Handler(Looper.getMainLooper()).post {
+                    result = checkSignInResultFromUI()
+                }
+                Thread.sleep(150)
+
+                Log.d("LoopTest", "第 ${times+1} 次检查：$result")
+
+                // 成功 → 返回桌面
+                if (result == true) {
+                    Thread.sleep(3000)
+                    Handler(Looper.getMainLooper()).post {
+                        returnHome()
+                    }
+                    return
+                }
+
+                // 点击“我知道了”
+                Handler(Looper.getMainLooper()).post {
+                    performClick(805F, 1273F)
+                }
+                Thread.sleep(1000)
+
+                // 点击打卡按钮
+                Handler(Looper.getMainLooper()).post {
+                    performClick(540F, 1280F)
+                }
+                Thread.sleep(2000)
+
+                times++
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                break
+            }
+        }
+//        if(times >= 10){
+//            Log.d("LoopTest","已达最大次数，退出打卡循环")
+//            return
+//        }
+//
+//
+//        val flag = checkSignInResultFromUI()
+//        Log.d("LoopTest","第 $times 次检查，结果为$flag")
+//
+//        if(flag == true){
+//            Log.d("LoopTest","打卡成功")
+//            Handler(Looper.getMainLooper()).postDelayed({
+//                returnHome()
+//            },3000)
+//            return
+//        }
+//
+//        Log.d("LoopTest","打卡未成功")
+//        performClick(805F,1273F)
+//
+//        Handler(Looper.getMainLooper()).postDelayed({
+//            performClick(540F,1280F)
+//
+//            Handler(Looper.getMainLooper()).postDelayed({
+//                checkLoop(times + 1)
+//            },2000)
+//        },1000)
     }
 
     /**
