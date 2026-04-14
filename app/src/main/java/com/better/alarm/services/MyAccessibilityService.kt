@@ -688,7 +688,7 @@ class MyAccessibilityService: AccessibilityService() {
 ////            e.printStackTrace()
 ////        }
         /**
-         * 划动屏幕调出输入密码界面
+         * 调出输入密码界面
          */
         performSwipeGesture(551F,1762F,551F,512F,500L)
         try{
